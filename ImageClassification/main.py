@@ -6,7 +6,7 @@ from tensorflow.keras import layers
 import matplotlib.pyplot as plt
 import os
 
-# imagePath = "D:\_workarea\kagglecatsanddogs_3367a\PetImages"
+imagePath = "D:\_workarea\kagglecatsanddogs_3367a\PetImages"
 
 
 def filter_out_corrupted_images():
@@ -42,6 +42,7 @@ def show_ds_images(train_ds):
 
 image_size = (180, 180)
 batch_size = 32
+epochs = 3
 
 train_ds = tf.keras.preprocessing.image_dataset_from_directory(
     imagePath,
@@ -68,23 +69,6 @@ data_augmentation = keras.Sequential(
         layers.experimental.preprocessing.RandomRotation(0.1),
     ]
 )
-
-# plt.figure(figsize=(10, 10))
-# for images, _ in train_ds.take(1):
-#     for i in range(9):
-#         augmented_images = data_augmentation(images)
-#         ax = plt.subplot(3, 3, i + 1)
-#         plt.imshow(augmented_images[0].numpy().astype("uint8"))
-#         plt.axis("off")
-#     plt.show()
-
-# gpu
-# inputs = keras.Input(shape=input_shape)
-# x = data_augmentation(inputs)
-# x = layers.experimental.preprocessing.Rescaling(1./255)(x)
-
-# augmented_train_ds = train_ds.map(
-#   lambda x, y: (data_augmentation(x, training=True), y))
 
 train_ds = train_ds.prefetch(buffer_size=32)
 val_ds = val_ds.prefetch(buffer_size=32)
@@ -142,20 +126,40 @@ def make_model(input_shape, num_classes):
     return keras.Model(inputs, outputs)
 
 
-model = make_model(input_shape=image_size + (3,), num_classes=2)
-keras.utils.plot_model(model, show_shapes=True)
+def train():
+    model = make_model(input_shape=image_size + (3,), num_classes=2)
+    # keras.models.load_model('./save_at_1.h5')
+    keras.utils.plot_model(model, show_shapes=True)
+    callbacks = [
+        keras.callbacks.ModelCheckpoint("save_at_{epoch}.h5"),
+    ]
+    model.compile(
+        optimizer=keras.optimizers.Adam(1e-3),
+        loss="binary_crossentropy",
+        metrics=["accuracy"],
+    )
+    model.fit(
+        train_ds, epochs=epochs, callbacks=callbacks, validation_data=val_ds,
+    )
 
-epochs = 50
 
-callbacks = [
-    keras.callbacks.ModelCheckpoint("save_at_{epoch}.h5"),
-]
-model.compile(
-    optimizer=keras.optimizers.Adam(1e-3),
-    loss="binary_crossentropy",
-    metrics=["accuracy"],
-)
+# train()
 
-model.fit(
-    train_ds, epochs=epochs, callbacks=callbacks, validation_data=val_ds,
-)
+
+def load_model_and_predict():
+    model = keras.models.load_model('./save_at_1.h5')
+
+    img = keras.preprocessing.image.load_img(
+        imagePath + "/Cat/6779.jpg", target_size=image_size
+    )
+    img_array = keras.preprocessing.image.img_to_array(img)
+    img_array = tf.expand_dims(img_array, 0)  # Create batch axis
+
+    predictions = model.predict(img_array)
+    score = predictions[0]
+    print(
+        "This image is %.2f percent cat and %.2f percent dog."
+        % (100 * (1 - score), 100 * score)
+    )
+
+load_model_and_predict()
